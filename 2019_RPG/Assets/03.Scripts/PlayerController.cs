@@ -1,14 +1,19 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
+using UnityStandardAssets.CrossPlatformInput;
+using UnityEngine.EventSystems;
+
+public enum FightType
+{
+    Knight,
+    Archer,
+    Mage
+}
 
 public class PlayerController : MonoBehaviour {
     public static PlayerController instance = null;
-
-    private PlayerController()
-    {
-
-    }
 
     private void Awake()
     {
@@ -39,6 +44,19 @@ public class PlayerController : MonoBehaviour {
     Vector3 _velocity;
     public float DashDistance = 5f;
     public Vector3 Drag;
+
+    // values related to attack and skills
+    bool _isAttacking;
+    private int _attack;
+    private bool canChain;
+    public FightType fightType;
+
+    Coroutine chainLockMovementRoutine;
+    Coroutine chainBrokeChain;
+
+    private bool[] _skill_Able = new bool[3];
+    private bool _all_skill_able;
+    
     // Use this for initialization
     void Start () {
         _playerAnimator = GetComponent<Animator>();
@@ -50,62 +68,84 @@ public class PlayerController : MonoBehaviour {
         
         _Dash = false;
         _velocity = Vector3.zero;
+
+        _isAttacking = false;
+        _attack = 0;
+        canChain = false;
+        fightType = FightType.Knight;
+
+        _skill_Able[0] = true;
+        _skill_Able[1] = true;
+        _skill_Able[2] = true;
+        _all_skill_able = true;
     }
 
-    // Update is called once per frame
+// Update is called once per frame
     void Update () {
-        if (Input.touchCount > 0)
+        foreach (Touch touch in Input.touches)
         {
-            Touch touch = Input.GetTouch(0);
-            if(touch.phase == TouchPhase.Began)
+            if (!EventSystem.current.IsPointerOverGameObject(touch.fingerId))
             {
-                Vector2 pos = touch.position;
-                pos.x = (pos.x - _width) / _width;
-                pos.y = (pos.y - _height) / _height;
-                _touchStartPos = new Vector3(pos.x, pos.y, 0.0f);                
-            }
-            if (touch.phase == TouchPhase.Moved || 
-                touch.phase == TouchPhase.Stationary)
-            {
-                Vector2 pos = touch.position;
-                pos.x = (pos.x - _width) / _width;
-                pos.y = (pos.y - _height) / _height;
-                _touchMovingPos = new Vector3(pos.x, pos.y, 0.0f);
-
-
-                Vector2 dragDir = _touchMovingPos - _touchStartPos;
-                float dragAmount = dragDir.magnitude * 7;
-                dragAmount = Mathf.Clamp(dragAmount, 0f, 1f);
-
-
-
-                Vector3 horizontal = new Vector3(1, 0, -1);
-                Vector3 vertical = new Vector3(1, 0, 1);
-
-                Vector3 moveDir = (horizontal * dragDir.x + vertical * dragDir.y).normalized;
-
-                if (dragAmount > 0.1f)
+                if (true)
                 {
-                    _isMoving = true;
-                    _playerAnimator.SetBool("isMoving", true);                    
-                    _playerAnimator.SetFloat("characterSpeed", dragAmount);
-                    transform.rotation = Quaternion.LookRotation(moveDir);
-                }
-                else
-                {
-                    dragDir = Vector2.zero;
-                }
+                    if (touch.phase == TouchPhase.Began)
+                    {
 
-                if (!_Dash)
-                {
-                    _controller.Move(moveDir * Time.deltaTime * speed * dragAmount);
-                    _playerAnimator.SetBool("Rolling", false);
-                }
+                        Vector2 pos = touch.position;
+                        pos.x = (pos.x - _width) / _width;
+                        pos.y = (pos.y - _height) / _height;
+                        _touchStartPos = new Vector3(pos.x, pos.y, 0.0f);
+                        _isMoving = true;
+                    }
+                    if (touch.phase == TouchPhase.Moved ||
+                        touch.phase == TouchPhase.Stationary &&
+                        _isMoving)
+                    {
+                        Vector2 pos = touch.position;
+                        pos.x = (pos.x - _width) / _width;
+                        pos.y = (pos.y - _height) / _height;
+                        _touchMovingPos = new Vector3(pos.x, pos.y, 0.0f);
 
-            }
+                        Vector2 dragDir = _touchMovingPos - _touchStartPos;
+                        float dragAmount = dragDir.magnitude * 7;
+                        dragAmount = Mathf.Clamp(dragAmount, 0f, 1f);
 
-        }
-        else
+                        Vector3 horizontal = new Vector3(1, 0, -1);
+                        Vector3 vertical = new Vector3(1, 0, 1);
+
+                        Vector3 moveDir = (horizontal * dragDir.x + vertical * dragDir.y).normalized;
+
+
+                        if (!_isAttacking)
+                        {
+                            if (dragAmount > 0.1f)
+                            {
+                                // _isMoving = true;
+
+                                _playerAnimator.SetBool("isMoving", true);
+                                _playerAnimator.SetFloat("characterSpeed", dragAmount);
+                                transform.rotation = Quaternion.LookRotation(moveDir);
+                            }
+                            else
+                            {
+                                dragDir = Vector2.zero;
+                            }
+
+                            if (!_Dash)
+                            {
+                                //Debug.Log(_isAttacking + " - " + "dragAmount : " + dragAmount + " - " + moveDir);
+
+                                _controller.Move(moveDir * Time.deltaTime * speed * dragAmount);
+                                _playerAnimator.SetBool("Rolling", false);
+                            }
+                        }
+                    }
+                } // if(!_Attacking) states end
+            } // if (!EventSystem.current.IsPointerOverGameObject(touch.fingerId)) end
+        } // foreach end
+
+
+        if (Input.touchCount <= 0)
         {
             _isMoving = false;
             _playerAnimator.SetBool("isMoving", false);
@@ -118,45 +158,219 @@ public class PlayerController : MonoBehaviour {
             _touchStartPos = Vector3.zero;
             _touchMovingPos = Vector3.zero;
         }
-
-
-        // moment in pc mode
-        //float translation = Input.GetAxis("Vertical") * speed;
-        //float rotation = Input.GetAxis("Horizontal") * rotationSpeed;
-                
-        //translation *= Time.deltaTime;
-        //rotation *= Time.deltaTime;
-
-        //float v = Input.GetAxis("Vertical");
-        //controller.Move(transform.forward * v * Time.deltaTime * speed);
-
-        //if (translation > 0f)
-        //{
-        //    playerAnimator.SetBool("isMoving", true);
-        //    playerAnimator.SetFloat("characterSpeed", translation * 15);
-        //}
-        //else
-        //{
-        //    playerAnimator.SetBool("isMoving", false);
-        //    playerAnimator.SetFloat("characterSpeed", 0);
-
-        //}
-        //transform.Rotate(0, rotation, 0);
-	}
+    }
 
     public void SetDashTrue()
     {
-        if (!_Dash && _isMoving && !_playerAnimator.GetBool("Rolling"))
+        if (!_Dash && _isMoving && !_isAttacking)
         {
-            _Dash = true;
             _playerAnimator.SetBool("Rolling", true);
+            _Dash = true;
+            _all_skill_able = false;
+
+            StartCoroutine(LockWhileRolling(0.5f));            
         }
     }
 
-    // Called from animation event 
-    // with rolling anim and AnimationEventHelper    
-    public void SetDashFalse()
+    IEnumerator LockWhileRolling(float pauseTime)
     {
+        //_playerAnimator.SetFloat("characterSpeed", 0f);
+        //_playerAnimator.SetBool("isMoving", false);
+        //_isAttacking = false;
+        yield return new WaitForSeconds(pauseTime);
+        _playerAnimator.SetBool("Rolling", false);
+        yield return new WaitForSeconds(0.15f);
+        _all_skill_able = true;
         _Dash = false;
+    }    
+
+    public void AttackChain(ActionBtnUI actionBtnUI, Image ChainImage)
+    {
+        Debug.Log(canChain);
+        if (_Dash) return;
+        if (_attack == 0)
+        {
+            Attack1(actionBtnUI, ChainImage);
+        }
+        else if (canChain)
+        {
+            if (_attack == 1)
+            {
+                Attack2(actionBtnUI, ChainImage);
+            }
+            else if (_attack >= 2)
+            {
+                Attack3(actionBtnUI, ChainImage);
+            }
+            else
+            {
+                // do nothing
+            }
+        }
+        else
+        {
+            // do nothing
+        }
     }
+
+    void Attack1(ActionBtnUI actionBtnUI, Image ChainImage)
+    {
+        if(chainBrokeChain != null && chainLockMovementRoutine != null)
+        {
+            StopCoroutine(chainBrokeChain);
+            StopCoroutine(chainLockMovementRoutine);
+        }
+        canChain = false;
+        _playerAnimator.SetInteger("Attack", 1);
+        _attack = 1;
+        _isAttacking = true;
+
+        if (fightType == FightType.Knight)
+        {
+            chainLockMovementRoutine = StartCoroutine(LockMovementAndAttack(0.6f));
+            chainBrokeChain = StartCoroutine(BrokeCanChain(0.3f, 0.7f));
+            actionBtnUI.LowerChainImageAmount(ChainImage, 3f);
+        }
+    }
+
+    void Attack2(ActionBtnUI actionBtnUI, Image ChainImage)
+    {
+        if (chainBrokeChain != null && chainLockMovementRoutine != null)
+        {
+            StopCoroutine(chainBrokeChain);
+            StopCoroutine(chainLockMovementRoutine);
+        }
+        canChain = false;
+        _playerAnimator.SetInteger("Attack", 2);
+        _attack = 2;
+        _isAttacking = true;
+
+        if (fightType == FightType.Knight)
+        {
+            chainLockMovementRoutine = StartCoroutine(LockMovementAndAttack(0.7f));
+            chainBrokeChain = StartCoroutine(BrokeCanChain(0.4f, 0.6f));
+            actionBtnUI.LowerChainImageAmount(ChainImage, 3f);
+
+        }
+
+    }
+
+    void Attack3(ActionBtnUI actionBtnUI, Image ChainImage)
+    {
+        if (chainBrokeChain != null && chainLockMovementRoutine != null)
+        {
+            StopCoroutine(chainBrokeChain);
+            StopCoroutine(chainLockMovementRoutine);
+        }
+        _playerAnimator.SetInteger("Attack", 3);
+        _attack = 3;
+        _isAttacking = true;
+
+        if (fightType == FightType.Knight)
+        {
+            chainLockMovementRoutine = StartCoroutine(LockMovementAndAttack(0.8f));
+            //chainBrokeChain = StartCoroutine(BrokeCanChain(0.4f, 0.6f));
+            actionBtnUI.LowerChainImageAmount(ChainImage, 0.01f);
+        }
+        canChain = false;
+
+    }
+
+    IEnumerator LockMovementAndAttack(float pauseTime)
+    {
+        _playerAnimator.SetFloat("characterSpeed", 0f);
+        _all_skill_able = false;
+        _playerAnimator.SetBool("Rolling", false);
+        yield return new WaitForSeconds(pauseTime);
+        _all_skill_able = true;
+        _isAttacking = false;
+        _playerAnimator.SetInteger("Attack", 0);
+        _attack = 0;
+    }
+
+
+    IEnumerator BrokeCanChain(float timeToWindow, float brokeTime)
+    {
+        yield return new WaitForSeconds(timeToWindow);
+        canChain = true;
+        yield return new WaitForSeconds(brokeTime);
+        _playerAnimator.SetInteger("Attack", 0);
+
+        canChain = false;
+        _attack = 0;
+    }
+    
+    public void Skill_1_Attack(ActionBtnUI actionBtnUI, Image CoolTimeImage)
+    {
+        if (_skill_Able[0] && _all_skill_able)
+        {
+            _playerAnimator.SetTrigger("Skill_1");
+            _isAttacking = true;
+            _skill_Able[0] = false;
+
+            if (fightType == FightType.Knight)
+            {
+                //LockMomentForSkill();
+                StartCoroutine(LockMovementAndAttack(1f));
+                actionBtnUI.LowerSkillCoolTimeImage(CoolTimeImage, 3f);
+                StartCoroutine(SkillCoolTimeChecker(3, 0));
+            }
+        }
+    }
+
+    public void Skill_2_Attack(ActionBtnUI actionBtnUI, Image CoolTimeImage)
+    {
+        if (_skill_Able[1] && _all_skill_able)
+        {
+            _playerAnimator.SetTrigger("Skill_2");
+            _isAttacking = true;
+            _skill_Able[1] = false;
+
+            if (fightType == FightType.Knight)
+            {
+                StartCoroutine(LockMovementAndAttack(1f));
+                actionBtnUI.LowerSkillCoolTimeImage(CoolTimeImage, 5f);
+                StartCoroutine(SkillCoolTimeChecker(5, 1));
+            }
+        }
+    }
+
+    public void Skill_3_Attack(ActionBtnUI actionBtnUI, Image CoolTimeImage)
+    {
+        if (_skill_Able[2] && _all_skill_able)
+        {
+            _playerAnimator.SetTrigger("Skill_3");
+            _isAttacking = true;
+            _skill_Able[2] = false;
+
+            if (fightType == FightType.Knight)
+            {
+                StartCoroutine(LockMovementAndAttack(1.1f));
+                actionBtnUI.LowerSkillCoolTimeImage(CoolTimeImage, 4f);
+                StartCoroutine(SkillCoolTimeChecker(4, 2));
+            }
+        }
+    }
+
+    IEnumerator SkillCoolTimeChecker(float duration, int skill_Idx)
+    {
+        float count = 0;
+
+        while(count < duration)
+        {
+            count += Time.deltaTime;
+            
+            yield return null;
+        }
+        _skill_Able[skill_Idx] = true;
+        
+    }
+
+    void LockMomentForSkill()
+    {
+        _playerAnimator.SetFloat("characterSpeed", 0f);
+        _playerAnimator.SetBool("Rolling", false);
+        _playerAnimator.SetInteger("Attack", 0);
+    }
+
 }

@@ -3,11 +3,24 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class MainUIScript : MonoBehaviour {
+    public static MainUIScript instance = null;
     PlayerController _PlayerController;
 
-	// Use this for initialization
-	void Start () {
+    
+    private void Awake()
+    {
+        if (instance == null)
+            instance = this;
+        else if (instance != this)
+            Destroy(gameObject);
+
+        //DontDestroyOnLoad(gameObject);
+    }
+
+    // Use this for initialization
+    void Start () {
         _PlayerController = PlayerController.instance;
+
 	}
 	
 	// Update is called once per frame

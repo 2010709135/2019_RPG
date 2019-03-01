@@ -17,6 +17,6 @@ public class AnimationEventHelper : MonoBehaviour {
 
     public void SetPlayerDashFalse()
     {
-        _playerController.SetDashFalse();
+        //_playerController.SetDashFalse();
     }
 }
