@@ -97,8 +97,6 @@ namespace UnityStandardAssets.CrossPlatformInput
 		{
 			transform.position = m_StartPos;
 			UpdateVirtualAxes(m_StartPos);
-
-            gameObject.SetActive(false);
 		}
 
 

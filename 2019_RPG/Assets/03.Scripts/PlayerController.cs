@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityStandardAssets.CrossPlatformInput;
 using UnityEngine.EventSystems;
 
 public enum FightType
@@ -13,6 +12,7 @@ public enum FightType
 }
 
 public class PlayerController : MonoBehaviour {
+    #region Singleton
     public static PlayerController instance = null;
 
     private void Awake()
@@ -24,27 +24,24 @@ public class PlayerController : MonoBehaviour {
 
         //DontDestroyOnLoad(gameObject);
     }
- 
+    #endregion
+
     private CharacterController _controller;
     Animator _playerAnimator;
 
-    Vector3 _moveDirection = Vector3.zero;
     private bool _isMoving = false;
     public float speed = 5.0f;
     public float rotationSpeed = 100.0f;
 
     private float _width;
     private float _height;
-    private Vector3 _position;
 
+    private int _firstTouchID;
     private Vector3 _touchStartPos = Vector3.zero;
     private Vector3 _touchMovingPos = Vector3.zero;
 
     bool _Dash;
-    Vector3 _velocity;
-    public float DashDistance = 5f;
-    public Vector3 Drag;
-
+    
     // values related to attack and skills
     bool _isAttacking;
     private int _attack;
@@ -65,10 +62,10 @@ public class PlayerController : MonoBehaviour {
 
         _width = (float)Screen.width / 2.0f;
         _height = (float)Screen.height / 2.0f;
-        _position = new Vector3(0.0f, 0.0f, 0.0f);
+        //_position = new Vector3(0.0f, 0.0f, 0.0f);
         
         _Dash = false;
-        _velocity = Vector3.zero;
+//_velocity = Vector3.zero;
 
         _isAttacking = false;
         _attack = 0;
@@ -80,7 +77,8 @@ public class PlayerController : MonoBehaviour {
         _skill_Able[2] = true;
         _all_skill_able = true;
 
-        //Time.timeScale = 0.1f;
+        _firstTouchID = -1;
+        
     }
 
 // Update is called once per frame
@@ -88,62 +86,67 @@ public class PlayerController : MonoBehaviour {
         foreach (Touch touch in Input.touches)
         {
             if (!EventSystem.current.IsPointerOverGameObject(touch.fingerId))
-            {
-                if (true)
+            {                                
+                if(_firstTouchID >= 0)
                 {
-                    if (touch.phase == TouchPhase.Began)
-                    {
+                    if (_firstTouchID != touch.fingerId)
+                        continue;
+                }
 
-                        Vector2 pos = touch.position;
-                        pos.x = (pos.x - _width) / _width;
-                        pos.y = (pos.y - _height) / _height;
-                        _touchStartPos = new Vector3(pos.x, pos.y, 0.0f);
-                        _isMoving = true;
+                if (touch.phase == TouchPhase.Began)
+                {
+                    if(_firstTouchID <= 0)
+                    {
+                        _firstTouchID = touch.fingerId;
                     }
-                    if (touch.phase == TouchPhase.Moved ||
-                        touch.phase == TouchPhase.Stationary &&
-                        _isMoving)
+                    Vector2 pos = touch.position;
+                    pos.x = (pos.x - _width) / _width;
+                    pos.y = (pos.y - _height) / _height;
+                    _touchStartPos = new Vector3(pos.x, pos.y, 0.0f);
+                    _isMoving = true;
+                }
+                if (touch.phase == TouchPhase.Moved ||
+                    touch.phase == TouchPhase.Stationary &&
+                    _isMoving)
+                {
+                    Vector2 pos = touch.position;
+                    pos.x = (pos.x - _width) / _width;
+                    pos.y = (pos.y - _height) / _height;
+                    _touchMovingPos = new Vector3(pos.x, pos.y, 0.0f);
+
+                    Vector2 dragDir = _touchMovingPos - _touchStartPos;
+                    float dragAmount = dragDir.magnitude * 7;
+                    dragAmount = Mathf.Clamp(dragAmount, 0f, 1f);
+
+                    Vector3 horizontal = new Vector3(1, 0, -1);
+                    Vector3 vertical = new Vector3(1, 0, 1);
+
+                    Vector3 moveDir = (horizontal * dragDir.x + vertical * dragDir.y).normalized;
+
+
+                    if (!_isAttacking)
                     {
-                        Vector2 pos = touch.position;
-                        pos.x = (pos.x - _width) / _width;
-                        pos.y = (pos.y - _height) / _height;
-                        _touchMovingPos = new Vector3(pos.x, pos.y, 0.0f);
-
-                        Vector2 dragDir = _touchMovingPos - _touchStartPos;
-                        float dragAmount = dragDir.magnitude * 7;
-                        dragAmount = Mathf.Clamp(dragAmount, 0f, 1f);
-
-                        Vector3 horizontal = new Vector3(1, 0, -1);
-                        Vector3 vertical = new Vector3(1, 0, 1);
-
-                        Vector3 moveDir = (horizontal * dragDir.x + vertical * dragDir.y).normalized;
-
-
-                        if (!_isAttacking)
+                        if (dragAmount > 0.1f)
                         {
-                            if (dragAmount > 0.1f)
-                            {
-                                // _isMoving = true;
+                            _playerAnimator.SetBool("isMoving", true);
+                            _playerAnimator.SetFloat("characterSpeed", dragAmount);
+                            transform.rotation = Quaternion.LookRotation(moveDir);
+                        }
+                        else
+                        {
+                            dragDir = Vector2.zero;
+                        }
 
-                                _playerAnimator.SetBool("isMoving", true);
-                                _playerAnimator.SetFloat("characterSpeed", dragAmount);
-                                transform.rotation = Quaternion.LookRotation(moveDir);
-                            }
-                            else
-                            {
-                                dragDir = Vector2.zero;
-                            }
-
-                            if (!_Dash)
-                            {
-                                //Debug.Log(_isAttacking + " - " + "dragAmount : " + dragAmount + " - " + moveDir);
-
-                                _controller.Move(moveDir * Time.deltaTime * speed * dragAmount);
-                                _playerAnimator.SetBool("Rolling", false);
-                            }
+                        if (!_Dash)
+                        {
+                            _controller.Move(moveDir * Time.deltaTime * speed * dragAmount);
+                            _playerAnimator.SetBool("Rolling", false);
                         }
                     }
-                } // if(!_Attacking) states end
+                }else if(touch.phase == TouchPhase.Ended)
+                {
+                    _firstTouchID = -1;
+                }                
             } // if (!EventSystem.current.IsPointerOverGameObject(touch.fingerId)) end
         } // foreach end
 
@@ -187,9 +190,7 @@ public class PlayerController : MonoBehaviour {
         _Dash = false;
     }
 
-    float _chainTimer = 0;
-    float _chainLimitTime = 0;
-
+    
     public void AttackChain(ActionBtnUI actionBtnUI, Image ChainImage)
     {
         if (_Dash || _isSkillActivate) return;
