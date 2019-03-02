@@ -56,6 +56,7 @@ public class PlayerController : MonoBehaviour {
 
     private bool[] _skill_Able = new bool[3];
     private bool _all_skill_able;
+    private bool _isSkillActivate = false;
     
     // Use this for initialization
     void Start () {
@@ -78,6 +79,8 @@ public class PlayerController : MonoBehaviour {
         _skill_Able[1] = true;
         _skill_Able[2] = true;
         _all_skill_able = true;
+
+        //Time.timeScale = 0.1f;
     }
 
 // Update is called once per frame
@@ -182,12 +185,15 @@ public class PlayerController : MonoBehaviour {
         yield return new WaitForSeconds(0.15f);
         _all_skill_able = true;
         _Dash = false;
-    }    
+    }
+
+    float _chainTimer = 0;
+    float _chainLimitTime = 0;
 
     public void AttackChain(ActionBtnUI actionBtnUI, Image ChainImage)
     {
-        Debug.Log(canChain);
-        if (_Dash) return;
+        if (_Dash || _isSkillActivate) return;
+
         if (_attack == 0)
         {
             Attack1(actionBtnUI, ChainImage);
@@ -198,7 +204,7 @@ public class PlayerController : MonoBehaviour {
             {
                 Attack2(actionBtnUI, ChainImage);
             }
-            else if (_attack >= 2)
+            else if (_attack == 2)
             {
                 Attack3(actionBtnUI, ChainImage);
             }
@@ -215,21 +221,21 @@ public class PlayerController : MonoBehaviour {
 
     void Attack1(ActionBtnUI actionBtnUI, Image ChainImage)
     {
-        if(chainBrokeChain != null && chainLockMovementRoutine != null)
+        if (chainBrokeChain != null && chainLockMovementRoutine != null)
         {
             StopCoroutine(chainBrokeChain);
             StopCoroutine(chainLockMovementRoutine);
         }
         canChain = false;
+        //if (_playerAnimator.GetInteger("Attack") != 0) return;
         _playerAnimator.SetInteger("Attack", 1);
         _attack = 1;
-        _isAttacking = true;
 
         if (fightType == FightType.Knight)
         {
-            chainLockMovementRoutine = StartCoroutine(LockMovementAndAttack(0.6f));
-            chainBrokeChain = StartCoroutine(BrokeCanChain(0.3f, 0.7f));
-            actionBtnUI.LowerChainImageAmount(ChainImage, 3f);
+            chainLockMovementRoutine = StartCoroutine(LockForAttack(0.6f));
+            chainBrokeChain = StartCoroutine(BrokeChainAttack(0.3f, 0.7f));
+            //actionBtnUI.LowerChainImageAmount(ChainImage, 3f);
         }
     }
 
@@ -243,13 +249,12 @@ public class PlayerController : MonoBehaviour {
         canChain = false;
         _playerAnimator.SetInteger("Attack", 2);
         _attack = 2;
-        _isAttacking = true;
 
         if (fightType == FightType.Knight)
         {
-            chainLockMovementRoutine = StartCoroutine(LockMovementAndAttack(0.7f));
-            chainBrokeChain = StartCoroutine(BrokeCanChain(0.4f, 0.6f));
-            actionBtnUI.LowerChainImageAmount(ChainImage, 3f);
+            chainLockMovementRoutine = StartCoroutine(LockForAttack(0.7f));
+            chainBrokeChain = StartCoroutine(BrokeChainAttack(0.4f, 0.6f));
+            //actionBtnUI.LowerChainImageAmount(ChainImage, 3f);
 
         }
 
@@ -264,40 +269,51 @@ public class PlayerController : MonoBehaviour {
         }
         _playerAnimator.SetInteger("Attack", 3);
         _attack = 3;
-        _isAttacking = true;
+        canChain = false;
 
         if (fightType == FightType.Knight)
         {
-            chainLockMovementRoutine = StartCoroutine(LockMovementAndAttack(0.8f));
-            //chainBrokeChain = StartCoroutine(BrokeCanChain(0.4f, 0.6f));
-            actionBtnUI.LowerChainImageAmount(ChainImage, 0.01f);
+            chainLockMovementRoutine = StartCoroutine(LockForAttack(0.8f));
+            chainBrokeChain = StartCoroutine(BrokeChainAttack(0f, 1.35f));
+            //actionBtnUI.LowerChainImageAmount(ChainImage, 0.01f);
         }
-        canChain = false;
 
     }
 
-    IEnumerator LockMovementAndAttack(float pauseTime)
+    IEnumerator LockForAttack(float pauseTime)
     {
-        _playerAnimator.SetFloat("characterSpeed", 0f);
         _all_skill_able = false;
-        _playerAnimator.SetBool("Rolling", false);
+        _isAttacking = true;
         yield return new WaitForSeconds(pauseTime);
+        _playerAnimator.SetInteger("Attack", 0);
+        yield return new WaitForSeconds(0.2f);
+        _isAttacking = false;
+        _all_skill_able = true;
+    }
+
+    IEnumerator BrokeChainAttack(float WaitForClip, float BrokeTime)
+    {
+        yield return new WaitForSeconds(WaitForClip);
+        canChain = true;
+        yield return new WaitForSeconds(BrokeTime);
+        canChain = false;
+        _attack = 0;
+    }
+
+    IEnumerator LockForSkills(float pauseTime)
+    {
+        _all_skill_able = false; // when one skill is activate, others can't be used
+        _isSkillActivate = true; // when skill is activate, attack can be used
+        _isAttacking = true;  
+        // when use skill, broke attack chain
+        _attack = 0;
+        canChain = false;
+        _playerAnimator.SetInteger("Attack", 0);
+        yield return new WaitForSeconds(pauseTime);
+        _isSkillActivate = false;
         _all_skill_able = true;
         _isAttacking = false;
-        _playerAnimator.SetInteger("Attack", 0);
-        _attack = 0;
-    }
-
-
-    IEnumerator BrokeCanChain(float timeToWindow, float brokeTime)
-    {
-        yield return new WaitForSeconds(timeToWindow);
-        canChain = true;
-        yield return new WaitForSeconds(brokeTime);
-        _playerAnimator.SetInteger("Attack", 0);
-
-        canChain = false;
-        _attack = 0;
+        
     }
     
     public void Skill_1_Attack(ActionBtnUI actionBtnUI, Image CoolTimeImage)
@@ -311,7 +327,7 @@ public class PlayerController : MonoBehaviour {
             if (fightType == FightType.Knight)
             {
                 //LockMomentForSkill();
-                StartCoroutine(LockMovementAndAttack(1f));
+                StartCoroutine(LockForSkills(1f));
                 actionBtnUI.LowerSkillCoolTimeImage(CoolTimeImage, 3f);
                 StartCoroutine(SkillCoolTimeChecker(3, 0));
             }
@@ -328,7 +344,7 @@ public class PlayerController : MonoBehaviour {
 
             if (fightType == FightType.Knight)
             {
-                StartCoroutine(LockMovementAndAttack(1f));
+                StartCoroutine(LockForSkills(1f));
                 actionBtnUI.LowerSkillCoolTimeImage(CoolTimeImage, 5f);
                 StartCoroutine(SkillCoolTimeChecker(5, 1));
             }
@@ -345,7 +361,7 @@ public class PlayerController : MonoBehaviour {
 
             if (fightType == FightType.Knight)
             {
-                StartCoroutine(LockMovementAndAttack(1.1f));
+                StartCoroutine(LockForSkills(1.1f));
                 actionBtnUI.LowerSkillCoolTimeImage(CoolTimeImage, 4f);
                 StartCoroutine(SkillCoolTimeChecker(4, 2));
             }
@@ -365,12 +381,5 @@ public class PlayerController : MonoBehaviour {
         _skill_Able[skill_Idx] = true;
         
     }
-
-    void LockMomentForSkill()
-    {
-        _playerAnimator.SetFloat("characterSpeed", 0f);
-        _playerAnimator.SetBool("Rolling", false);
-        _playerAnimator.SetInteger("Attack", 0);
-    }
-
+    
 }
